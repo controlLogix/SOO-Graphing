@@ -20,5 +20,12 @@
       "@/*": ["web/src/*"]
     }
   },
-  "include": ["server/**/*.ts", "web/src/**/*.ts", "web/src/**/*.tsx", "shared/**/*.ts"]
+  "include": [
+    "server/**/*.ts",
+    "web/src/**/*.ts",
+    "web/src/**/*.tsx",
+    "shared/**/*.ts",
+    "tests/**/*.ts",
+    "sample/**/*.ts"
+  ]
 }

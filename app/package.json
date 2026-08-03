@@ -10,6 +10,8 @@
     "dev:web": "vite",
     "build": "vite build",
     "start": "tsx server/index.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "sample": "tsx sample/build-sample-soo.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

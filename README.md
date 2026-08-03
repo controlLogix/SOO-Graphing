@@ -22,10 +22,17 @@ Everything runs locally. No cloud calls, and no document leaves the machine.
 cd app
 npm install
 npm run dev          # API on :3001, UI on :5173
+npm test             # Node's built-in runner — nothing to install
 ```
 
 Node 20+ (developed on 24.18). Full usage, keyboard shortcuts and export options are in
 [`app/README.md`](app/README.md).
+
+**Nothing to import?** There is a fictional sample specification in
+[`app/sample/`](app/sample/) — import `001. SOO Sample Air Handling Unit.docx` and you get
+the whole pipeline: parsed parts, a drawn graph, and a gap report. It contains deliberate
+defects so the gap panel has something to find; they are catalogued in
+[`app/sample/README.md`](app/sample/README.md).
 
 ---
 
@@ -49,6 +56,8 @@ model.
 | [`PLAN.md`](PLAN.md) | Design, IR schema, gap-rule catalogue, build order |
 | [`docs/document-model.md`](docs/document-model.md) | The document model recovered from a real corpus: lead-in grammar, canonical PART spine, observed defects |
 | [`app/`](app/) | The application — Express API + Vite/React canvas, TypeScript throughout |
+| [`app/sample/`](app/sample/) | A fictional sample SOO and the script that generates it |
+| [`app/tests/`](app/tests/) | Lead-in grammar, end-to-end parse of the sample, and the round trip |
 | [`backend/soo/`](backend/soo/) | An earlier, independent Python implementation of the parse pipeline, with Mermaid output and a CLI |
 
 ---
@@ -58,7 +67,8 @@ model.
 The lead-in grammar and the canonical part spine were recovered from a corpus of 16 HVAC
 specifications that are all one template instantiated repeatedly. **Those source documents
 are client material and are deliberately not published here** — `examples/` is gitignored.
-Test fixtures must be small redacted snippets, never files from that corpus.
+The published fixture in `app/sample/` is a wholly fictional document written for the
+purpose, not a redaction of a real one, and it is the only sample the tests use.
 
 Two consequences worth knowing before trusting the output:
 

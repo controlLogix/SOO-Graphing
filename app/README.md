@@ -27,6 +27,30 @@ Requires Node 20+ (developed on 24.18).
 
 ---
 
+## Trying it, and the tests
+
+There is a fictional sample document in [`sample/`](sample/) — import
+`001. SOO Sample Air Handling Unit.docx` through the header and you get the full pipeline
+without needing a real specification. It deliberately contains defects so the gap panel has
+something to report; [`sample/README.md`](sample/README.md) lists them.
+
+```bash
+npm test          # no watch, no config, nothing to install
+npm run sample    # regenerate the sample .docx from its authored source
+npm run typecheck
+```
+
+Tests run on Node's built-in runner, so there is no test framework to install. Three files:
+
+- `tests/lead-in.test.ts` — the lead-in grammar, including the precedence cases where two
+  rules both match and the specific one has to win
+- `tests/parse.test.ts` — the sample document parsed end-to-end through the real `.docx`
+  reader, asserting the IR and every planted defect
+- `tests/roundtrip.test.ts` — document → IR → graph → document → IR, to catch a part,
+  operator or setpoint quietly lost on the way through the canvas
+
+---
+
 ## What it does
 
 **Import** — a `.docx` or `.pdf` sequence of operations. The parser recovers the
@@ -66,10 +90,12 @@ app/
 │   │   └── parser.ts        structure -> grouping -> extraction
 │   ├── graph/build.ts       IR <-> graph, both directions
 │   └── export/              docx.ts, pdf.ts
-└── web/src/
-    ├── store.ts       graph state, undo/redo
-    ├── components/    Header, Palette, Canvas, Inspector, Parts, Findings
-    └── lib/           api.ts, layout.ts
+├── web/src/
+│   ├── store.ts       graph state, undo/redo
+│   ├── components/    Header, Palette, Canvas, Inspector, Parts, Findings
+│   └── lib/           api.ts, layout.ts
+├── sample/            a fictional SOO, and the script that generates it
+└── tests/             lead-in grammar, end-to-end parse, round trip
 ```
 
 Stack: Express + Vite/React 18 + TypeScript throughout. Canvas is
