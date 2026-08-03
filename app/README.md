@@ -62,7 +62,8 @@ point list rather than logic.
 
 **Draw** — drag shapes from the left rail onto the canvas, drag between handles to
 connect, select to edit, `Delete` to remove, `Ctrl+Z` / `Ctrl+Shift+Z` to undo and redo.
-**Auto layout** re-flows the active part with ELK.
+Imported documents are laid out with ELK as they load, so a part arrives spread rather than
+stacked; **Auto layout** re-flows the active part again after you have edited it.
 
 **Export** — `.docx` or `.pdf`, written in the house format: cover block, `PART n – Title`
 headings, colon lead-ins with their lists, the Adjustable Setpoints table, and

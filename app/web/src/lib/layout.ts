@@ -1,4 +1,5 @@
-import type { SooEdge, SooNode } from "@shared/graph";
+import type { GraphPart, SooEdge, SooNode } from "@shared/graph";
+import { estimateNodeSize } from "@shared/metrics";
 
 // ELK is ~1.4 MB. Load it the first time someone actually lays a part out rather
 // than making every page load carry it.
@@ -12,20 +13,27 @@ function getElk(): Promise<Elk> {
   return elkPromise;
 }
 
-const SIZE: Record<string, { w: number; h: number }> = {
-  gate: { w: 108, h: 56 },
-  delay: { w: 190, h: 52 },
-  start: { w: 260, h: 56 },
-  end: { w: 200, h: 52 },
-  note: { w: 280, h: 60 },
-  default: { w: 280, h: 62 },
-};
+const sizeOf = (node: SooNode) => estimateNodeSize(node.data);
 
-function sizeOf(node: SooNode) {
-  const base = SIZE[node.data.kind] ?? SIZE.default;
-  // Long labels need more room or the layout overlaps them.
-  const lines = Math.ceil((node.data.label?.length ?? 20) / 38);
-  return { w: base.w, h: Math.max(base.h, 26 + lines * 18) };
+/**
+ * Lay every part out at once, for a freshly imported document.
+ *
+ * The server places nodes well enough to be readable, but only ELK spreads a part
+ * properly, and an import used to arrive un-laid-out — so every document opened as a
+ * stack of overlapping boxes until the user found the Auto layout button. A part that
+ * fails to lay out keeps its server positions rather than losing the whole import.
+ */
+export async function layoutAllParts(parts: GraphPart[]): Promise<GraphPart[]> {
+  return Promise.all(
+    parts.map(async (part) => {
+      if (!part.nodes.length) return part;
+      try {
+        return { ...part, nodes: await autoLayout(part.nodes, part.edges) };
+      } catch {
+        return part;
+      }
+    }),
+  );
 }
 
 export async function autoLayout(
@@ -41,7 +49,12 @@ export async function autoLayout(
       "elk.algorithm": "layered",
       "elk.direction": direction,
       "elk.layered.spacing.nodeNodeBetweenLayers": "90",
-      "elk.spacing.nodeNode": "28",
+      "elk.spacing.nodeNode": "32",
+      // A part is mostly disconnected islands — loose statements and separate lead-in
+      // groups. Without component spacing they get packed together and read as one
+      // tangle, which is the thing this layout exists to avoid.
+      "elk.separateConnectedComponents": "true",
+      "elk.spacing.componentComponent": "56",
       "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
       "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
       "elk.edgeRouting": "ORTHOGONAL",

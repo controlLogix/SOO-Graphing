@@ -7,10 +7,20 @@
  */
 import type { GraphPart, SooEdge, SooGraph, SooNode, SooNodeData } from "@shared/graph";
 import type { Group, SooDocument, Step } from "@shared/ir";
+import {
+  COL_PITCH as COL,
+  GROUP_GAP_Y as GROUP_GAP,
+  NODE_GAP_Y,
+  estimateNodeSize,
+} from "@shared/metrics";
 
-const COL = 380;
-const ROW = 74;
-const GROUP_GAP = 90;
+/** Stack a node at `y` and return where the next one starts. */
+function stack(nodes: SooNode[], id: string, x: number, y: number, data: SooNodeData): number {
+  nodes.push(node(id, x, y, data));
+  return y + estimateNodeSize(data).h + NODE_GAP_Y;
+}
+
+const bottomOf = (y: number, data: SooNodeData): number => y + estimateNodeSize(data).h;
 
 function node(
   id: string,
@@ -32,19 +42,16 @@ export function irToGraph(doc: SooDocument): SooGraph {
     for (const sid of part.statements) {
       const step = stepById.get(sid);
       if (!step) continue;
-      nodes.push(
-        node(sid, 0, cursorY, {
-          label: step.text,
-          kind: "note",
-          modality: step.modality,
-          condition: step.condition,
-          part: part.n,
-          sourceBlock: step.source?.block ?? null,
-        }),
-      );
-      cursorY += ROW;
+      cursorY = stack(nodes, sid, 0, cursorY, {
+        label: step.text,
+        kind: "note",
+        modality: step.modality,
+        condition: step.condition,
+        part: part.n,
+        sourceBlock: step.source?.block ?? null,
+      });
     }
-    if (part.statements.length) cursorY += GROUP_GAP;
+    if (part.statements.length) cursorY += GROUP_GAP - NODE_GAP_Y;
 
     for (const gid of part.groups) {
       const group = doc.groups.find((g) => g.id === gid);
@@ -93,99 +100,98 @@ function buildGroup(
     sourceBlock: step.source?.block ?? null,
   });
 
+  const leadData = (kind: SooNodeData["kind"]): SooNodeData => ({
+    label: group.leadIn,
+    kind,
+    part: partN,
+    modality: group.modality,
+    condition: group.condition,
+    sourceBlock: group.source?.block ?? null,
+  });
+
   if (group.operator === "INVENTORY") {
-    nodes.push(
-      node(group.id, 0, startY, {
-        label: group.leadIn,
-        kind: "note",
-        part: partN,
-        modality: group.modality,
-        condition: group.condition,
-        sourceBlock: group.source?.block ?? null,
-      }),
-    );
+    const lead = leadData("note");
+    nodes.push(node(group.id, 0, startY, lead));
     // Fan the items out from the lead-in so the list survives a graph -> document
     // round trip. Without the edges they read back as loose paragraphs.
-    items.forEach((step, i) => {
-      nodes.push(node(step.id, COL, startY + i * ROW, base(step, "note")));
+    let itemY = startY;
+    for (const step of items) {
+      itemY = stack(nodes, step.id, COL, itemY, base(step, "note"));
       edges.push({
         id: `${group.id}->${step.id}`,
         source: group.id,
         target: step.id,
         variant: "flow",
       });
-    });
-    return { nodes, edges, nextY: startY + Math.max(1, items.length) * ROW };
+    }
+    const itemsBottom = items.length ? itemY - NODE_GAP_Y : startY;
+    return { nodes, edges, nextY: Math.max(bottomOf(startY, lead), itemsBottom) };
   }
 
   if (group.operator === "SEQUENCE") {
-    nodes.push(
-      node(group.id, 0, startY, {
-        label: group.leadIn,
-        kind: "start",
-        part: partN,
-        modality: group.modality,
-        condition: group.condition,
-        sourceBlock: group.source?.block ?? null,
-      }),
-    );
+    const lead = leadData("start");
+    nodes.push(node(group.id, 0, startY, lead));
     let prev = group.id;
-    items.forEach((step, i) => {
+    let itemY = startY;
+    for (const step of items) {
       const kind: SooNodeData["kind"] = /alarm/i.test(step.text) ? "alarm" : "action";
-      nodes.push(node(step.id, COL, startY + i * ROW, base(step, kind)));
+      itemY = stack(nodes, step.id, COL, itemY, base(step, kind));
       edges.push({ id: `${prev}->${step.id}`, source: prev, target: step.id, variant: "flow" });
       prev = step.id;
-    });
-    return { nodes, edges, nextY: startY + Math.max(1, items.length) * ROW };
+    }
+    const itemsBottom = items.length ? itemY - NODE_GAP_Y : startY;
+    return { nodes, edges, nextY: Math.max(bottomOf(startY, lead), itemsBottom) };
   }
 
   // AND / OR / UNKNOWN: conditions converge on a gate, then optionally a delay.
   const gateId = `${group.id}_gate`;
-  items.forEach((step, i) => {
-    nodes.push(node(step.id, 0, startY + i * ROW, base(step, "condition")));
+  let itemY = startY;
+  for (const step of items) {
+    itemY = stack(nodes, step.id, 0, itemY, base(step, "condition"));
     edges.push({ id: `${step.id}->${gateId}`, source: step.id, target: gateId, variant: "flow" });
-  });
+  }
+  const itemsBottom = items.length ? itemY - NODE_GAP_Y : startY + 56;
 
-  const midY = startY + ((Math.max(1, items.length) - 1) * ROW) / 2;
-  nodes.push(
-    node(gateId, COL, midY, {
-      label: group.operator === "OR" ? "ANY of" : "ALL of",
-      kind: "gate",
-      op: group.operator === "OR" ? "OR" : "AND",
-      part: partN,
-    }),
-  );
+  // The gate, any delay, and the outcome sit centred on the condition stack, so a
+  // four-condition set does not leave its gate stranded at the top.
+  const centre = (startY + itemsBottom) / 2;
+  const centred = (data: SooNodeData): number =>
+    Math.max(startY, Math.round(centre - estimateNodeSize(data).h / 2));
+
+  let bottom = itemsBottom;
+  const place = (id: string, x: number, data: SooNodeData): void => {
+    const y = centred(data);
+    nodes.push(node(id, x, y, data));
+    bottom = Math.max(bottom, bottomOf(y, data));
+  };
+
+  const gateData: SooNodeData = {
+    label: group.operator === "OR" ? "ANY of" : "ALL of",
+    kind: "gate",
+    op: group.operator === "OR" ? "OR" : "AND",
+    part: partN,
+  };
+  place(gateId, COL, gateData);
 
   let tail = gateId;
   let x = COL * 2;
   if (group.delay) {
     const delayId = `${group.id}_delay`;
-    nodes.push(
-      node(delayId, x, midY, {
-        label: `wait ${group.delay}`,
-        kind: "delay",
-        delay: group.delay,
-        part: partN,
-      }),
-    );
+    place(delayId, x, {
+      label: `wait ${group.delay}`,
+      kind: "delay",
+      delay: group.delay,
+      part: partN,
+    });
     edges.push({ id: `${tail}->${delayId}`, source: tail, target: delayId, variant: "flow" });
     tail = delayId;
     x += COL;
   }
 
-  nodes.push(
-    node(group.id, x, midY, {
-      label: group.leadIn,
-      kind: "state",
-      part: partN,
-      modality: group.modality,
-      condition: group.condition,
-      sourceBlock: group.source?.block ?? null,
-    }),
-  );
+  place(group.id, x, leadData("state"));
   edges.push({ id: `${tail}->${group.id}`, source: tail, target: group.id, variant: "flow" });
 
-  return { nodes, edges, nextY: startY + Math.max(1, items.length) * ROW };
+  return { nodes, edges, nextY: bottom };
 }
 
 /* ------------------------------------------------------------------ */

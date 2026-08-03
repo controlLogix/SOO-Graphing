@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { useStore } from "../store";
-import { autoLayout } from "../lib/layout";
+import { autoLayout, layoutAllParts } from "../lib/layout";
 import { exportDocument, importDocument } from "../lib/api";
 
 export function Header() {
@@ -25,7 +25,11 @@ export function Header() {
     setStatus(`Reading ${file.name}…`);
     try {
       const result = await importDocument(file);
-      loadImport(result);
+      // Lay every part out before it reaches the canvas, so the first thing the user
+      // sees is a spread graph rather than a pile they have to un-stack by hand.
+      setStatus(`Laying out ${result.document.parts.length} parts…`);
+      const parts = await layoutAllParts(result.graph.parts);
+      loadImport({ ...result, graph: { ...result.graph, parts } });
       setStatus(
         `${result.document.equipmentClass} — ${result.document.parts.length} parts, ` +
           `${result.document.steps.length} statements, ${result.document.findings.length} findings`,
