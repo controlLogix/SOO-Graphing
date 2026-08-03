@@ -1,0 +1,51 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Node ----
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# ---- Env / secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- Local data ----
+*.sqlite
+*.sqlite3
+*.db
+projects/
+uploads/
+scratch/
+_backups/
+
+# ---- OS / editor ----
+Thumbs.db
+desktop.ini
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ---- Office / CAD lock and backup files ----
+~$*
+*.bak
+*.dwl
+*.dwl2
+*.bak[0-9]*
+
+# ---- Source SOO documents ----
+# Real client project documents. They stay local: the corpus the lead-in grammar was
+# recovered from is confidential, and git history would keep it even after a delete.
+# Test fixtures must be small redacted snippets, never files from here.
+examples/
